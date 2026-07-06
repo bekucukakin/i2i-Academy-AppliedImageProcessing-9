@@ -268,20 +268,55 @@ def blank_panel(text, size=(400, 250)):
     return panel
 
 
-def show_pipeline(original, gray, blurred, edges, detected_image, cropped_plate):
-    top_row = np.hstack([
-        add_title(resize_for_display(original), "Original"),
-        add_title(resize_for_display(gray), "Grayscale"),
-        add_title(resize_for_display(blurred), "Blurred"),
-    ])
-    bottom_row = np.hstack([
-        add_title(resize_for_display(edges), "Canny Edges"),
-        add_title(resize_for_display(detected_image), "Detected Plate"),
-        add_title(resize_for_display(cropped_plate), "Cropped Plate"),
-    ])
-    dashboard = np.vstack([top_row, bottom_row])
+PANEL_SIZE = (400, 250)
+PANEL_GRID = [
+    ["Original", "Grayscale", "Blurred"],
+    ["Canny Edges", "Detected Plate", "Cropped Plate"],
+]
 
-    cv2.imshow("ALPR Pipeline", dashboard)
+
+def build_dashboard(panels):
+    rows = [
+        np.hstack([add_title(resize_for_display(panels[title], PANEL_SIZE), title) for title in row])
+        for row in PANEL_GRID
+    ]
+    return np.vstack(rows)
+
+
+def build_zoom(panels, title):
+    zoomed_size = (PANEL_SIZE[0] * 3, PANEL_SIZE[1] * 2)
+    return add_title(resize_for_display(panels[title], zoomed_size), f"{title} (click to go back)")
+
+
+def show_pipeline(original, gray, blurred, edges, detected_image, cropped_plate):
+    panels = {
+        "Original": original,
+        "Grayscale": gray,
+        "Blurred": blurred,
+        "Canny Edges": edges,
+        "Detected Plate": detected_image,
+        "Cropped Plate": cropped_plate,
+    }
+    window_name = "ALPR Pipeline"
+    zoomed_panel = {"title": None}
+
+    def on_click(event, x, y, _flags, _userdata):
+        if event != cv2.EVENT_LBUTTONDOWN:
+            return
+
+        if zoomed_panel["title"]:
+            zoomed_panel["title"] = None
+            cv2.imshow(window_name, build_dashboard(panels))
+            return
+
+        row, col = y // PANEL_SIZE[1], x // PANEL_SIZE[0]
+        if row < len(PANEL_GRID) and col < len(PANEL_GRID[0]):
+            zoomed_panel["title"] = PANEL_GRID[row][col]
+            cv2.imshow(window_name, build_zoom(panels, zoomed_panel["title"]))
+
+    dashboard = build_dashboard(panels)
+    cv2.imshow(window_name, dashboard)
+    cv2.setMouseCallback(window_name, on_click)
     cv2.imwrite("alpr_pipeline_result.jpg", dashboard)
 
 
